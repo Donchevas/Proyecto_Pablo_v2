@@ -18,7 +18,7 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 def _allowed_origins() -> list[str]:
     configured = os.getenv(
         "ALLOWED_ORIGINS",
-        "http://localhost:5500,http://127.0.0.1:5500,http://localhost:8080,https://proyecto-pablo.vercel.app",
+        "http://localhost:5500,http://127.0.0.1:5500,http://localhost:8080,https://proyecto-pablo-v2.vercel.app",
     )
     return [origin.strip() for origin in configured.split(",") if origin.strip()]
 
