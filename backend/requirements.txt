@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+langchain
+langchain-community
+langchain-google-vertexai
+langchain-core
+google-cloud-aiplatform
+python-dotenv

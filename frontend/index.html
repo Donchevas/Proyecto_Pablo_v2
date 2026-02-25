@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente Big Data Academy</title>
+    <style>
+        :root {
+            --primary-color: #0052cc;
+            --bg-color: #f4f5f7;
+            --chat-bg: #ffffff;
+            --user-msg-bg: #0052cc;
+            --ai-msg-bg: #f0f2f5;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            height: 100%;
+        }
+
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 15px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background-color: var(--user-msg-bg);
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+
+        .ai-message {
+            align-self: flex-start;
+            background-color: var(--ai-msg-bg);
+            color: #333;
+            border-bottom-left-radius: 2px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background-color: white;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #003d99;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .typing {
+            font-size: 0.8rem;
+            color: #888;
+            margin-left: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="header">
+            🎓 Big Data Academy Bot
+        </div>
+
+        <div id="messages">
+            <div class="message ai-message">
+                ¡Hola! Soy BigDatin 🤖. ¿En qué curso estás interesado hoy? (Big Data, Cloud o IA)
+            </div>
+        </div>
+
+        <div class="typing" id="typingIndicator">BigDatin está escribiendo...</div>
+
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Escribe tu consulta aquí..." onkeypress="handleKeyPress(event)">
+            <button id="sendBtn" onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = (window.CHAT_API_URL || "https://pablo-backend-1069673789450.us-central1.run.app")
+        .replace(/\/$/, ""); // quita slash final si existe
+        const API_URL = API_BASE.endsWith("/chat") ? API_BASE : `${API_BASE}/chat`;
+        const REQUEST_TIMEOUT_MS = 15000;
+        const MAX_RETRIES = 2;
+
+        let sessionId = localStorage.getItem('chatSessionId');
+        if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            localStorage.setItem('chatSessionId', sessionId);
+        }
+
+        const messagesDiv = document.getElementById('messages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') sendMessage();
+        }
+
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        async function sendWithRetry(payload) {
+            let lastError;
+
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP ${response.status}`);
+                    }
+
+                    return await response.json();
+                } catch (error) {
+                    lastError = error;
+                    if (attempt < MAX_RETRIES) {
+                        await wait(400 * (attempt + 1));
+                    }
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            }
+
+            throw lastError;
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user-message');
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            typingIndicator.style.display = 'block';
+
+            try {
+                const data = await sendWithRetry({
+                    message: text,
+                    session_id: sessionId
+                });
+
+                addMessage(data.response, 'ai-message');
+            } catch (error) {
+                addMessage('⚠️ Lo siento, tuve un problema de conexión. Intenta de nuevo.', 'ai-message');
+                console.error(error);
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                typingIndicator.style.display = 'none';
+                userInput.focus();
+            }
+        }
+
+        function addMessage(text, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            div.textContent = text;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
